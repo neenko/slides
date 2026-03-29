@@ -26,7 +26,9 @@ async function init() {
       else if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }
     });
 
-    showSlide(0);
+    const hash = location.hash ? parseInt(location.hash.slice(1)) - 1 : 0;
+    const startIndex = Math.min(Math.max(hash || 0, 0), slideshow.slides.length - 1);
+    showSlide(startIndex);
   } catch (err) {
     console.error('Failed to load slideshow:', err);
     showError('Failed to load slideshow.');
@@ -50,6 +52,9 @@ async function showSlide(index) {
     const layout = slide.layout || 'smart';
     await renderMulti(slide, area, layout);
   }
+
+  // Update URL hash (1-based)
+  history.replaceState(null, '', '#' + (index + 1));
 
   // Update counter
   document.getElementById('counter').textContent = `${index + 1} / ${slideshow.slides.length}`;

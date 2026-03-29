@@ -71,6 +71,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .slide-handle { padding: 8px 12px; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text-muted); font-weight: 600; cursor: grab; }
 .slide-handle::before { content: '⠿'; font-size: 14px; }
 .slide-handle .slide-num { margin-right: auto; }
+.slide-play { background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 11px; line-height: 1; padding: 2px 5px; border-radius: 3px; opacity: 0; transition: opacity 0.15s; flex-shrink: 0; }
+.slide-card:hover .slide-play { opacity: 1; }
+.slide-play:hover { color: var(--accent); background: #eff6ff; }
+
 .layout-select { font-size: 11px; border: 1px solid var(--border); border-radius: 4px; padding: 2px 4px; background: var(--bg); color: var(--text-muted); cursor: pointer; max-width: 80px; flex-shrink: 0; }
 .layout-select:focus { outline: none; border-color: var(--accent); }
 

@@ -336,6 +336,19 @@ function createSlideCard(slide) {
   numSpan.className = 'slide-num';
   handle.appendChild(numSpan);
 
+  const playBtn = document.createElement('button');
+  playBtn.className = 'slide-play';
+  playBtn.title = 'Preview from this slide';
+  playBtn.textContent = '▶';
+  playBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!slideshow.id) { alert('Save the slideshow first to preview.'); return; }
+    const slideIdx = slideshow.slides.findIndex(s => s.id === slide.id);
+    window.open(`/view/${slideshow.id}#${slideIdx + 1}`, '_blank');
+  });
+  playBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+  handle.appendChild(playBtn);
+
   const layoutSelect = document.createElement('select');
   layoutSelect.className = 'layout-select';
   layoutSelect.title = 'Multi-asset layout';
@@ -460,6 +473,9 @@ function render() {
     const select = card.querySelector('.layout-select');
     select.style.display = slide.assets.length > 1 ? '' : 'none';
     select.value = slide.layout || 'smart';
+
+    // Show play button only when slideshow is saved
+    card.querySelector('.slide-play').style.display = slideshow.id ? '' : 'none';
 
     const assetsContainer = card.querySelector('.slide-assets');
 
