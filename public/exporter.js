@@ -185,6 +185,18 @@ async function renderSlideToCanvas(slide) {
   return canvas;
 }
 
+// Normalize EXIF orientation by drawing through a canvas.
+// Browsers apply EXIF rotation when rendering <img>; canvas output
+// has the corrected pixels with no EXIF tag, so external apps see it right.
+async function normalizeOrientation(dataUrl) {
+  const img = await loadImg(dataUrl);
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth;
+  c.height = img.naturalHeight;
+  c.getContext('2d').drawImage(img, 0, 0);
+  return { dataUrl: c.toDataURL('image/jpeg', 0.92), img };
+}
+
 // ===================== PDF EXPORT =====================
 async function exportPDF(slideshow, onProgress) {
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
@@ -228,14 +240,14 @@ async function exportPPTX(slideshow, onProgress) {
     if (slide.assets.length === 1) {
       const asset = slide.assets[0];
       const isVideo = asset.type === 'video';
-      const dataUrl = isVideo ? await videoFrameDataUrl(asset.url) : await fetchDataUrl(asset.url);
+      const rawDataUrl = isVideo ? await videoFrameDataUrl(asset.url) : await fetchDataUrl(asset.url);
 
-      if (dataUrl) {
-        const img = await loadImg(dataUrl).catch(() => null);
-        if (img) {
-          const { x, y, w, h } = containDims(img.naturalWidth, img.naturalHeight);
-          pSlide.addImage({ data: dataUrl, x, y, w, h });
-        }
+      if (rawDataUrl) {
+        // Normalize orientation via canvas — strips EXIF rotation tag so
+        // Keynote/PowerPoint don't misinterpret it.
+        const { dataUrl, img } = await normalizeOrientation(rawDataUrl);
+        const { x, y, w, h } = containDims(img.naturalWidth, img.naturalHeight);
+        pSlide.addImage({ data: dataUrl, x, y, w, h });
       }
 
       if (isVideo) {
