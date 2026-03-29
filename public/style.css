@@ -143,6 +143,10 @@ body.viewer-body { background: #000; color: #fff; overflow: hidden; }
 .viewer-arrow.next { right: 8px; border-radius: 4px; }
 .viewer-arrow:disabled { display: none; }
 
+.viewer-layout-select { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); color: #fff; font-size: 13px; padding: 5px 8px; border-radius: var(--radius); cursor: pointer; }
+.viewer-layout-select:focus { outline: none; border-color: rgba(255,255,255,0.5); }
+.viewer-layout-select option { background: #222; color: #fff; }
+
 .viewer-edit { position: fixed; top: 16px; right: 16px; background: rgba(255,255,255,0.1); border: none; color: rgba(255,255,255,0.7); padding: 6px 12px; border-radius: var(--radius); cursor: pointer; font-size: 13px; text-decoration: none; opacity: 0; transition: opacity 0.3s, background 0.15s; }
 .viewer:hover .viewer-edit { opacity: 1; }
 .viewer-edit:hover { background: rgba(255,255,255,0.2); color: #fff; }

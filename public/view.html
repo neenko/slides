@@ -15,6 +15,13 @@
     <button class="viewer-arrow next" id="next-btn" onclick="next()">&#8250;</button>
     <div class="viewer-controls">
       <span class="viewer-counter" id="counter"></span>
+      <select id="layout-select" class="viewer-layout-select" style="display:none" onchange="changeLayout(this.value)">
+        <option value="smart">Smart</option>
+        <option value="contain">Contain</option>
+        <option value="cover">Cover</option>
+        <option value="freeflow">Free flow</option>
+        <option value="mosaic">Mosaic</option>
+      </select>
       <div class="viewer-nav">
         <button onclick="prev()" id="ctrl-prev">&#8249;</button>
         <button onclick="next()" id="ctrl-next">&#8250;</button>

@@ -1,6 +1,7 @@
 // ===================== STATE =====================
 let slideshow = null;
 let currentIndex = 0;
+let saveTimer = null;
 
 // ===================== INIT =====================
 async function init() {
@@ -55,6 +56,12 @@ async function showSlide(index) {
 
   // Update URL hash (1-based)
   history.replaceState(null, '', '#' + (index + 1));
+
+  // Sync layout select (only for multi-asset slides)
+  const layoutSelect = document.getElementById('layout-select');
+  const isMulti = slide.assets.length > 1;
+  layoutSelect.style.display = isMulti ? '' : 'none';
+  if (isMulti) layoutSelect.value = slide.layout || 'smart';
 
   // Update counter
   document.getElementById('counter').textContent = `${index + 1} / ${slideshow.slides.length}`;
@@ -227,6 +234,22 @@ function loadRatios(assets) {
       img.src = asset.url;
     });
   }));
+}
+
+// ===================== LAYOUT CHANGE =====================
+function changeLayout(value) {
+  slideshow.slides[currentIndex].layout = value;
+  showSlide(currentIndex);
+
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    const id = location.pathname.split('/').pop();
+    await fetch(`/api/slideshows/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slides: slideshow.slides }),
+    });
+  }, 1000);
 }
 
 // ===================== ERROR =====================
