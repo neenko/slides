@@ -31,7 +31,7 @@ function setDirty() {
   document.getElementById('save-status').textContent = 'Unsaved changes';
   clearTimeout(autosaveTimer);
   if (document.getElementById('autosave-toggle')?.checked) {
-    autosaveTimer = setTimeout(() => save(), 2000);
+    autosaveTimer = setTimeout(() => save(), 1000);
   }
 }
 
