@@ -65,10 +65,10 @@ async function showSlide(index) {
   // Update URL hash (1-based)
   history.replaceState(null, '', '#' + (index + 1));
 
-  // Sync layout select (only for multi-asset slides)
+  // Sync layout select (only for multi-asset slides in non-share mode)
   const layoutSelect = document.getElementById('layout-select');
   const isMulti = slide.assets.length > 1;
-  layoutSelect.style.display = isMulti ? '' : 'none';
+  layoutSelect.style.display = isMulti && !isShareMode ? '' : 'none';
   if (isMulti) layoutSelect.value = slide.layout || 'smart';
 
   // Update counter
