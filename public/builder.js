@@ -250,9 +250,11 @@ async function save() {
 function showSavedUI(id) {
   const copyBtn = document.getElementById('copy-btn');
   const viewBtn = document.getElementById('view-btn');
+  const exportDrop = document.getElementById('export-dropdown');
   copyBtn.style.display = 'inline-flex';
   viewBtn.style.display = 'inline-flex';
   viewBtn.href = `/view/${id}`;
+  exportDrop.style.display = 'inline-flex';
 }
 
 // ===================== COPY LINK =====================
