@@ -24,7 +24,17 @@ async function fetchDataUrl(url) {
   }
 }
 
-function videoFrameDataUrl(url) {
+async function videoFrameDataUrl(url) {
+  // ImageKit serves video thumbnails at <videoUrl>/ik-thumbnail.jpg — use that first.
+  if (url.includes('ik.imagekit.io')) {
+    const thumbUrl = url.split('?')[0] + '/ik-thumbnail.jpg';
+    const data = await fetchDataUrl(thumbUrl);
+    if (data) return data;
+  }
+
+  // Generic fallback: load video without crossOrigin (allows loading from any source)
+  // then capture a frame. Canvas may be tainted (SecurityError) for cross-origin videos —
+  // we catch that and return the placeholder.
   return new Promise(resolve => {
     const placeholder = () => {
       const c = document.createElement('canvas');
@@ -41,15 +51,16 @@ function videoFrameDataUrl(url) {
     };
 
     const video = document.createElement('video');
-    video.crossOrigin = 'anonymous';
+    // No crossOrigin — lets the video load even without CORS headers.
+    // Canvas will throw SecurityError if cross-origin; we catch it below.
     video.muted = true;
     video.preload = 'metadata';
 
     const timeout = setTimeout(placeholder, 10000);
 
     video.addEventListener('error', () => { clearTimeout(timeout); placeholder(); });
-    video.addEventListener('loadeddata', () => {
-      video.currentTime = Math.min(1, video.duration * 0.1 || 1);
+    video.addEventListener('loadedmetadata', () => {
+      video.currentTime = Math.min(1, video.duration * 0.1 || 0);
     });
     video.addEventListener('seeked', () => {
       clearTimeout(timeout);
