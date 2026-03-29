@@ -467,7 +467,7 @@ function render() {
     }
 
     // Update slide number label
-    card.querySelector('.slide-num').textContent = `Slide ${slideIndex + 1}`;
+    card.querySelector('.slide-num').textContent = slideIndex + 1;
 
     // Sync layout select
     const select = card.querySelector('.layout-select');
