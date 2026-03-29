@@ -1,0 +1,13 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/view/:id"
+  to = "/view.html"
+  status = 200
+
+[[redirects]]
+  from = "/builder/:id"
+  to = "/builder.html"
+  status = 200

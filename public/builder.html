@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Builder – Slideshows</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="builder-header">
+    <a href="/" class="btn btn-ghost" style="padding:6px 10px;">← Back</a>
+    <input id="title-input" class="title-input" type="text" value="Untitled Slideshow" />
+    <div class="header-spacer"></div>
+    <span id="save-status" class="save-status"></span>
+    <button id="copy-btn" class="btn btn-ghost" style="display:none" onclick="copyLink()">Copy Link</button>
+    <a id="view-btn" class="btn btn-ghost" style="display:none" target="_blank">View</a>
+    <button class="btn btn-primary" onclick="save()">Save</button>
+  </header>
+  <div class="builder-body">
+    <div class="url-section">
+      <h3>Add Images &amp; Videos</h3>
+      <textarea id="url-input" class="url-input" placeholder="Paste URLs here, one per line&#10;https://example.com/photo.jpg&#10;https://example.com/video.mp4"></textarea>
+      <div class="url-actions">
+        <button class="btn btn-primary" onclick="addUrls()">Add to Slideshow</button>
+        <button class="btn btn-ghost" onclick="document.getElementById('url-input').value=''">Clear</button>
+      </div>
+    </div>
+    <div class="slides-section">
+      <h3>Slides <span id="slides-count" class="slides-count"></span></h3>
+      <div id="slides-grid" class="slides-grid"></div>
+    </div>
+  </div>
+  <script src="/builder.js"></script>
+</body>
+</html>

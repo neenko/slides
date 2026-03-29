@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Slideshows</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div class="page-index">
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;">
+      <h1 style="margin:0">Slideshows</h1>
+      <button class="btn btn-primary" onclick="location.href='/builder.html'">+ New Slideshow</button>
+    </div>
+    <div id="grid" class="slideshow-grid">
+      <div style="color:#999">Loading...</div>
+    </div>
+  </div>
+  <script>
+    async function load() {
+      const grid = document.getElementById('grid');
+      try {
+        const res = await fetch('/api/slideshows');
+        const list = await res.json();
+        if (!list.length) {
+          grid.innerHTML = '<div class="empty-state"><p>No slideshows yet.</p><button class="btn btn-primary" onclick="location.href=\'/builder.html\'">Create your first slideshow</button></div>';
+          return;
+        }
+        grid.innerHTML = list.map(s => `
+          <div class="slideshow-card">
+            <h2>${escHtml(s.title)}</h2>
+            <div class="meta">${s.slideCount} slide${s.slideCount !== 1 ? 's' : ''} &middot; ${formatDate(s.createdAt)}</div>
+            <div class="actions">
+              <a href="/builder/${s.id}" class="btn btn-ghost">Edit</a>
+              <a href="/view/${s.id}" class="btn btn-primary">View</a>
+            </div>
+          </div>
+        `).join('');
+      } catch (e) {
+        grid.innerHTML = '<div style="color:red">Failed to load slideshows.</div>';
+      }
+    }
+    function escHtml(str) {
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+    function formatDate(iso) {
+      return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    }
+    load();
+  </script>
+</body>
+</html>

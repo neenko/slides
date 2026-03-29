@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Slideshow</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="viewer-body">
+  <div class="viewer" id="viewer">
+    <div class="viewer-slide" id="slide-area">
+      <div class="viewer-loading">Loading...</div>
+    </div>
+    <button class="viewer-arrow prev" id="prev-btn" onclick="prev()">&#8249;</button>
+    <button class="viewer-arrow next" id="next-btn" onclick="next()">&#8250;</button>
+    <div class="viewer-controls">
+      <span class="viewer-counter" id="counter"></span>
+      <div class="viewer-nav">
+        <button onclick="prev()" id="ctrl-prev">&#8249;</button>
+        <button onclick="next()" id="ctrl-next">&#8250;</button>
+      </div>
+    </div>
+    <a id="edit-link" class="viewer-edit" href="#">Edit</a>
+  </div>
+  <script src="/viewer.js"></script>
+</body>
+</html>
