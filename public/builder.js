@@ -3,6 +3,10 @@ let slideshow = { id: null, title: 'Untitled Slideshow', slides: [] };
 let dragInfo = null; // { type: 'slide'|'asset', slideId, assetId? }
 let dirty = false;
 
+// DOM element caches — reused across renders to avoid image reloads
+const slideEls = new Map(); // slideId → card element
+const assetEls = new Map(); // assetId → thumb element
+
 // ===================== UTILS =====================
 function uid() {
   return Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
@@ -16,10 +20,8 @@ function assetType(url) {
 
 function escHtml(str) {
   return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function setDirty() {
@@ -38,17 +40,13 @@ function clearAllDropClasses() {
 
 // ===================== INIT =====================
 async function init() {
-  // Determine if editing existing or creating new
   const pathParts = location.pathname.split('/');
-  // /builder/:id  → last part is the id
-  // /builder.html → no id
   const lastPart = pathParts[pathParts.length - 1];
   const isNewPage = lastPart === 'builder.html' || lastPart === 'builder' || lastPart === '';
 
   const titleInput = document.getElementById('title-input');
 
   if (!isNewPage && lastPart) {
-    // Try to load existing slideshow
     try {
       const res = await fetch(`/api/slideshows/${lastPart}`);
       if (res.ok) {
@@ -57,16 +55,12 @@ async function init() {
         titleInput.value = slideshow.title;
         showSavedUI(slideshow.id);
         document.title = `${slideshow.title} – Builder`;
-      } else {
-        // Not found, start fresh
-        slideshow = { id: null, title: 'Untitled Slideshow', slides: [] };
       }
     } catch (e) {
       console.error('Failed to load slideshow:', e);
     }
   }
 
-  // Wire up title input
   titleInput.addEventListener('input', () => {
     slideshow.title = titleInput.value;
     setDirty();
@@ -78,8 +72,7 @@ async function init() {
 // ===================== ADD URLS =====================
 function addUrls() {
   const textarea = document.getElementById('url-input');
-  const raw = textarea.value;
-  const urls = raw
+  const urls = textarea.value
     .split('\n')
     .map(u => u.trim())
     .filter(u => u.length > 0 && (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('/')));
@@ -87,13 +80,7 @@ function addUrls() {
   if (!urls.length) return;
 
   urls.forEach(url => {
-    const slide = {
-      id: uid(),
-      assets: [
-        { id: uid(), url, type: assetType(url) }
-      ]
-    };
-    slideshow.slides.push(slide);
+    slideshow.slides.push({ id: uid(), assets: [{ id: uid(), url, type: assetType(url) }] });
   });
 
   textarea.value = '';
@@ -106,6 +93,11 @@ function removeAsset(slideId, assetId) {
   const slide = slideshow.slides.find(s => s.id === slideId);
   if (!slide) return;
   slide.assets = slide.assets.filter(a => a.id !== assetId);
+
+  // Remove from cache
+  const el = assetEls.get(assetId);
+  if (el) { el.remove(); assetEls.delete(assetId); }
+
   cleanSlides();
   setDirty();
   render();
@@ -114,12 +106,16 @@ function removeAsset(slideId, assetId) {
 // ===================== DELETE SLIDE =====================
 function deleteSlide(slideId) {
   slideshow.slides = slideshow.slides.filter(s => s.id !== slideId);
+
+  // Remove from cache
+  const el = slideEls.get(slideId);
+  if (el) { el.remove(); slideEls.delete(slideId); }
+
   setDirty();
   render();
 }
 
 // ===================== MOVE ASSET =====================
-// Moves asset from fromSlideId to toSlideId, inserting before beforeAssetId (or at end if null)
 function moveAsset(assetId, fromSlideId, toSlideId, beforeAssetId) {
   const fromSlide = slideshow.slides.find(s => s.id === fromSlideId);
   const toSlide = slideshow.slides.find(s => s.id === toSlideId);
@@ -128,17 +124,12 @@ function moveAsset(assetId, fromSlideId, toSlideId, beforeAssetId) {
   const asset = fromSlide.assets.find(a => a.id === assetId);
   if (!asset) return;
 
-  // Remove from source
   fromSlide.assets = fromSlide.assets.filter(a => a.id !== assetId);
 
-  // Insert into destination
   if (beforeAssetId && beforeAssetId !== assetId) {
     const idx = toSlide.assets.findIndex(a => a.id === beforeAssetId);
-    if (idx === -1) {
-      toSlide.assets.push(asset);
-    } else {
-      toSlide.assets.splice(idx, 0, asset);
-    }
+    if (idx === -1) toSlide.assets.push(asset);
+    else toSlide.assets.splice(idx, 0, asset);
   } else {
     toSlide.assets.push(asset);
   }
@@ -156,19 +147,10 @@ function reorderSlide(slideId, targetSlideId, position) {
   if (idx === -1) return;
 
   const [slide] = slideshow.slides.splice(idx, 1);
-
   const targetIdx = slideshow.slides.findIndex(s => s.id === targetSlideId);
-  if (targetIdx === -1) {
-    slideshow.slides.push(slide);
-    return;
-  }
+  if (targetIdx === -1) { slideshow.slides.push(slide); return; }
 
-  if (position === 'before') {
-    slideshow.slides.splice(targetIdx, 0, slide);
-  } else {
-    slideshow.slides.splice(targetIdx + 1, 0, slide);
-  }
-
+  slideshow.slides.splice(position === 'before' ? targetIdx : targetIdx + 1, 0, slide);
   setDirty();
   render();
 }
@@ -182,17 +164,13 @@ function cleanSlides() {
 async function save() {
   const btn = document.querySelector('.btn-primary[onclick="save()"]');
   const status = document.getElementById('save-status');
-
   btn.disabled = true;
   status.textContent = 'Saving…';
 
   try {
-    const payload = {
-      title: slideshow.title,
-      slides: slideshow.slides,
-    };
-
+    const payload = { title: slideshow.title, slides: slideshow.slides };
     let res;
+
     if (slideshow.id) {
       res = await fetch(`/api/slideshows/${slideshow.id}`, {
         method: 'PUT',
@@ -215,7 +193,6 @@ async function save() {
     status.textContent = 'Saved';
     setTimeout(() => { if (status.textContent === 'Saved') status.textContent = ''; }, 2000);
 
-    // Update URL if newly created
     if (location.pathname === '/builder.html' || location.pathname.endsWith('/builder')) {
       history.replaceState({}, '', `/builder/${data.id}`);
     }
@@ -224,7 +201,7 @@ async function save() {
     document.title = `${slideshow.title} – Builder`;
   } catch (e) {
     console.error('Save failed:', e);
-    status.textContent = 'Save failed';
+    document.getElementById('save-status').textContent = 'Save failed';
   } finally {
     btn.disabled = false;
   }
@@ -250,194 +227,239 @@ function copyLink() {
   });
 }
 
+// ===================== CREATE ASSET THUMB =====================
+// Event handlers use thumb.closest('.slide-card') for the current slide ID
+// so they stay correct even after an asset is moved to a different slide.
+function createAssetThumb(asset) {
+  const thumb = document.createElement('div');
+  thumb.className = 'asset-thumb';
+  thumb.dataset.assetId = asset.id;
+  thumb.draggable = true;
+
+  if (asset.type === 'video') {
+    const video = document.createElement('video');
+    video.src = asset.url;
+    video.muted = true;
+    video.preload = 'metadata';
+    thumb.appendChild(video);
+  } else {
+    const img = document.createElement('img');
+    img.src = asset.url;
+    img.alt = '';
+    img.loading = 'lazy';
+    img.onerror = () => { img.style.display = 'none'; };
+    thumb.appendChild(img);
+  }
+
+  const badge = document.createElement('span');
+  badge.className = 'asset-type-badge';
+  badge.textContent = asset.type === 'video' ? 'video' : 'img';
+  thumb.appendChild(badge);
+
+  const removeBtn = document.createElement('button');
+  removeBtn.className = 'asset-remove';
+  removeBtn.title = 'Remove';
+  removeBtn.textContent = '✕';
+  removeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const currentSlideId = thumb.closest('.slide-card').dataset.slideId;
+    removeAsset(currentSlideId, asset.id);
+  });
+  thumb.appendChild(removeBtn);
+
+  thumb.addEventListener('dragstart', (e) => {
+    e.stopPropagation();
+    const currentSlideId = thumb.closest('.slide-card').dataset.slideId;
+    dragInfo = { type: 'asset', slideId: currentSlideId, assetId: asset.id };
+    thumb.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', asset.id);
+  });
+
+  thumb.addEventListener('dragend', (e) => {
+    e.stopPropagation();
+    thumb.classList.remove('dragging');
+    clearAllDropClasses();
+    dragInfo = null;
+  });
+
+  thumb.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!dragInfo || dragInfo.type !== 'asset' || dragInfo.assetId === asset.id) return;
+    const rect = thumb.getBoundingClientRect();
+    thumb.classList.remove('drop-indicator-before', 'drop-indicator-after');
+    thumb.classList.add(e.clientY < rect.top + rect.height / 2 ? 'drop-indicator-before' : 'drop-indicator-after');
+  });
+
+  thumb.addEventListener('dragleave', (e) => {
+    e.stopPropagation();
+    thumb.classList.remove('drop-indicator-before', 'drop-indicator-after');
+  });
+
+  thumb.addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!dragInfo || dragInfo.type !== 'asset' || dragInfo.assetId === asset.id) return;
+
+    const targetSlideId = thumb.closest('.slide-card').dataset.slideId;
+    const targetSlide = slideshow.slides.find(s => s.id === targetSlideId);
+    const rect = thumb.getBoundingClientRect();
+
+    if (e.clientY >= rect.top + rect.height / 2) {
+      // Insert after this asset
+      const thisIdx = targetSlide?.assets.findIndex(a => a.id === asset.id) ?? -1;
+      const nextAsset = targetSlide?.assets[thisIdx + 1];
+      moveAsset(dragInfo.assetId, dragInfo.slideId, targetSlideId, nextAsset?.id ?? null);
+    } else {
+      moveAsset(dragInfo.assetId, dragInfo.slideId, targetSlideId, asset.id);
+    }
+
+    clearAllDropClasses();
+    dragInfo = null;
+  });
+
+  return thumb;
+}
+
+// ===================== CREATE SLIDE CARD =====================
+function createSlideCard(slide) {
+  const card = document.createElement('div');
+  card.className = 'slide-card';
+  card.dataset.slideId = slide.id;
+  card.draggable = true;
+
+  const handle = document.createElement('div');
+  handle.className = 'slide-handle';
+
+  const numSpan = document.createElement('span');
+  numSpan.className = 'slide-num';
+  handle.appendChild(numSpan);
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'slide-delete';
+  deleteBtn.title = 'Delete slide';
+  deleteBtn.textContent = '✕';
+  deleteBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    deleteSlide(slide.id);
+  });
+  handle.appendChild(deleteBtn);
+  card.appendChild(handle);
+
+  const assetsContainer = document.createElement('div');
+  assetsContainer.className = 'slide-assets';
+  assetsContainer.dataset.slideId = slide.id;
+  card.appendChild(assetsContainer);
+
+  card.addEventListener('dragstart', (e) => {
+    if (dragInfo?.type === 'asset') return;
+    dragInfo = { type: 'slide', slideId: slide.id };
+    card.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', slide.id);
+  });
+
+  card.addEventListener('dragend', () => {
+    card.classList.remove('dragging');
+    clearAllDropClasses();
+    dragInfo = null;
+  });
+
+  card.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    if (!dragInfo) return;
+
+    if (dragInfo.type === 'slide') {
+      if (dragInfo.slideId === slide.id) return;
+      const rect = card.getBoundingClientRect();
+      card.classList.remove('drop-before', 'drop-after', 'drop-target');
+      card.classList.add(e.clientX < rect.left + rect.width / 2 ? 'drop-before' : 'drop-after');
+    } else if (dragInfo.type === 'asset' && dragInfo.slideId !== slide.id) {
+      card.classList.add('drop-target');
+    }
+  });
+
+  card.addEventListener('dragleave', (e) => {
+    if (!card.contains(e.relatedTarget)) {
+      card.classList.remove('drop-before', 'drop-after', 'drop-target');
+    }
+  });
+
+  card.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (!dragInfo) return;
+
+    if (dragInfo.type === 'slide') {
+      if (dragInfo.slideId === slide.id) return;
+      const rect = card.getBoundingClientRect();
+      reorderSlide(dragInfo.slideId, slide.id, e.clientX < rect.left + rect.width / 2 ? 'before' : 'after');
+    } else if (dragInfo.type === 'asset' && dragInfo.slideId !== slide.id) {
+      moveAsset(dragInfo.assetId, dragInfo.slideId, slide.id, null);
+    }
+
+    clearAllDropClasses();
+    dragInfo = null;
+  });
+
+  return card;
+}
+
 // ===================== RENDER =====================
+// Reuses existing DOM elements by moving them with appendChild (no image reloads).
 function render() {
   const grid = document.getElementById('slides-grid');
   const countEl = document.getElementById('slides-count');
 
-  countEl.textContent = slideshow.slides.length
-    ? `(${slideshow.slides.length})`
-    : '';
+  countEl.textContent = slideshow.slides.length ? `(${slideshow.slides.length})` : '';
 
   if (!slideshow.slides.length) {
     grid.innerHTML = '<div style="color:var(--text-muted);font-size:14px;padding:12px 0;">No slides yet. Add some URLs above.</div>';
+    slideEls.clear();
+    assetEls.clear();
     return;
   }
 
-  grid.innerHTML = '';
+  const activeSlideIds = new Set(slideshow.slides.map(s => s.id));
+  const activeAssetIds = new Set(slideshow.slides.flatMap(s => s.assets.map(a => a.id)));
+
+  // Prune stale cache entries
+  for (const id of slideEls.keys()) { if (!activeSlideIds.has(id)) slideEls.delete(id); }
+  for (const id of assetEls.keys()) { if (!activeAssetIds.has(id)) assetEls.delete(id); }
 
   slideshow.slides.forEach((slide, slideIndex) => {
-    const card = document.createElement('div');
-    card.className = 'slide-card';
-    card.dataset.slideId = slide.id;
-    card.draggable = true;
+    let card = slideEls.get(slide.id);
+    if (!card) {
+      card = createSlideCard(slide);
+      slideEls.set(slide.id, card);
+    }
 
-    // Handle bar
-    const handle = document.createElement('div');
-    handle.className = 'slide-handle';
-    handle.innerHTML = `<span class="slide-num">Slide ${slideIndex + 1}</span><button class="slide-delete" title="Delete slide" onclick="deleteSlide('${slide.id}')">✕</button>`;
-    card.appendChild(handle);
+    // Update slide number label
+    card.querySelector('.slide-num').textContent = `Slide ${slideIndex + 1}`;
 
-    // Assets list
-    const assetsContainer = document.createElement('div');
-    assetsContainer.className = 'slide-assets';
-    assetsContainer.dataset.slideId = slide.id;
+    const assetsContainer = card.querySelector('.slide-assets');
 
+    // Append (or reposition) asset thumbs in correct order
     slide.assets.forEach(asset => {
-      const thumb = document.createElement('div');
-      thumb.className = 'asset-thumb';
-      thumb.dataset.assetId = asset.id;
-      thumb.dataset.slideId = slide.id;
-      thumb.draggable = true;
-
-      if (asset.type === 'video') {
-        thumb.innerHTML = `
-          <video src="${escHtml(asset.url)}" muted preload="metadata"></video>
-          <span class="asset-type-badge">video</span>
-          <button class="asset-remove" title="Remove" onclick="removeAsset('${slide.id}','${asset.id}')">✕</button>
-        `;
-      } else {
-        thumb.innerHTML = `
-          <img src="${escHtml(asset.url)}" alt="" loading="lazy" onerror="this.style.display='none'">
-          <span class="asset-type-badge">img</span>
-          <button class="asset-remove" title="Remove" onclick="removeAsset('${slide.id}','${asset.id}')">✕</button>
-        `;
+      let thumb = assetEls.get(asset.id);
+      if (!thumb) {
+        thumb = createAssetThumb(asset);
+        assetEls.set(asset.id, thumb);
       }
-
-      // Asset drag events
-      thumb.addEventListener('dragstart', (e) => {
-        e.stopPropagation();
-        dragInfo = { type: 'asset', slideId: slide.id, assetId: asset.id };
-        thumb.classList.add('dragging');
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', asset.id);
-      });
-
-      thumb.addEventListener('dragend', (e) => {
-        e.stopPropagation();
-        thumb.classList.remove('dragging');
-        clearAllDropClasses();
-        dragInfo = null;
-      });
-
-      thumb.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!dragInfo || dragInfo.type !== 'asset') return;
-        if (dragInfo.assetId === asset.id) return;
-
-        const rect = thumb.getBoundingClientRect();
-        const midY = rect.top + rect.height / 2;
-        thumb.classList.remove('drop-indicator-before', 'drop-indicator-after');
-        if (e.clientY < midY) {
-          thumb.classList.add('drop-indicator-before');
-        } else {
-          thumb.classList.add('drop-indicator-after');
-        }
-      });
-
-      thumb.addEventListener('dragleave', (e) => {
-        e.stopPropagation();
-        thumb.classList.remove('drop-indicator-before', 'drop-indicator-after');
-      });
-
-      thumb.addEventListener('drop', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (!dragInfo || dragInfo.type !== 'asset') return;
-        if (dragInfo.assetId === asset.id) return;
-
-        const rect = thumb.getBoundingClientRect();
-        const midY = rect.top + rect.height / 2;
-        // If dropping before this asset, insert before it; if after, insert after it
-        // We insert before the "next" asset in the latter case
-        const insertBeforeId = e.clientY < midY ? asset.id : null;
-
-        if (e.clientY >= midY) {
-          // Insert after this asset: find next asset in this slide
-          const currentSlideAssets = slideshow.slides.find(s => s.id === slide.id)?.assets || [];
-          const thisIdx = currentSlideAssets.findIndex(a => a.id === asset.id);
-          const nextAsset = currentSlideAssets[thisIdx + 1];
-          moveAsset(dragInfo.assetId, dragInfo.slideId, slide.id, nextAsset ? nextAsset.id : null);
-        } else {
-          moveAsset(dragInfo.assetId, dragInfo.slideId, slide.id, insertBeforeId);
-        }
-
-        clearAllDropClasses();
-        dragInfo = null;
-      });
-
-      assetsContainer.appendChild(thumb);
+      assetsContainer.appendChild(thumb); // moves existing node, no reload
     });
 
-    card.appendChild(assetsContainer);
-
-    // Slide-level drag events
-    card.addEventListener('dragstart', (e) => {
-      // Only trigger if not starting from an asset thumb
-      if (dragInfo && dragInfo.type === 'asset') return;
-      dragInfo = { type: 'slide', slideId: slide.id };
-      card.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', slide.id);
+    // Remove any orphaned asset elements left in this container
+    Array.from(assetsContainer.children).forEach(child => {
+      if (!activeAssetIds.has(child.dataset.assetId)) child.remove();
     });
 
-    card.addEventListener('dragend', () => {
-      card.classList.remove('dragging');
-      clearAllDropClasses();
-      dragInfo = null;
-    });
+    grid.appendChild(card); // reposition card in grid
+  });
 
-    card.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      if (!dragInfo) return;
-
-      if (dragInfo.type === 'slide') {
-        if (dragInfo.slideId === slide.id) return;
-        const rect = card.getBoundingClientRect();
-        const midX = rect.left + rect.width / 2;
-        card.classList.remove('drop-before', 'drop-after', 'drop-target');
-        if (e.clientX < midX) {
-          card.classList.add('drop-before');
-        } else {
-          card.classList.add('drop-after');
-        }
-      } else if (dragInfo.type === 'asset') {
-        if (dragInfo.slideId !== slide.id) {
-          card.classList.add('drop-target');
-        }
-      }
-    });
-
-    card.addEventListener('dragleave', (e) => {
-      // Only clear if leaving the card itself (not a child)
-      if (!card.contains(e.relatedTarget)) {
-        card.classList.remove('drop-before', 'drop-after', 'drop-target');
-      }
-    });
-
-    card.addEventListener('drop', (e) => {
-      e.preventDefault();
-      if (!dragInfo) return;
-
-      if (dragInfo.type === 'slide') {
-        if (dragInfo.slideId === slide.id) return;
-        const rect = card.getBoundingClientRect();
-        const midX = rect.left + rect.width / 2;
-        const position = e.clientX < midX ? 'before' : 'after';
-        reorderSlide(dragInfo.slideId, slide.id, position);
-      } else if (dragInfo.type === 'asset') {
-        if (dragInfo.slideId !== slide.id) {
-          // Move asset to end of this slide
-          moveAsset(dragInfo.assetId, dragInfo.slideId, slide.id, null);
-        }
-      }
-
-      clearAllDropClasses();
-      dragInfo = null;
-    });
-
-    grid.appendChild(card);
+  // Remove any orphaned slide cards left in the grid
+  Array.from(grid.children).forEach(child => {
+    if (child.dataset.slideId && !activeSlideIds.has(child.dataset.slideId)) child.remove();
   });
 }
 
