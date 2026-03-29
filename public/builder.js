@@ -269,15 +269,30 @@ async function shareSlideshow() {
     const res = await fetch(`/api/slideshows/${slideshow.id}/share`, { method: 'POST' });
     const { token } = await res.json();
     const url = `${location.origin}/share/${token}`;
-    await navigator.clipboard.writeText(url);
-    btn.textContent = 'Link copied!';
-    setTimeout(() => { btn.textContent = orig; }, 2000);
+    document.getElementById('share-url-input').value = url;
+    document.getElementById('share-copy-btn').textContent = 'Copy';
+    document.getElementById('share-modal').style.display = 'flex';
   } catch (e) {
     console.error('Share failed:', e);
-    btn.textContent = orig;
   } finally {
+    btn.textContent = orig;
     btn.disabled = false;
   }
+}
+
+function closeShareModal(e) {
+  if (!e || e.target === document.getElementById('share-modal')) {
+    document.getElementById('share-modal').style.display = 'none';
+  }
+}
+
+function copyShareUrl() {
+  const input = document.getElementById('share-url-input');
+  navigator.clipboard.writeText(input.value).then(() => {
+    const btn = document.getElementById('share-copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+  });
 }
 
 // ===================== COPY LINK =====================

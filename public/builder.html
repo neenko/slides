@@ -39,6 +39,22 @@
       <div id="slides-grid" class="slides-grid"></div>
     </div>
   </div>
+  <div id="share-modal" class="modal-backdrop" style="display:none" onclick="closeShareModal(event)">
+    <div class="modal">
+      <div class="modal-header">
+        <span>Share link</span>
+        <button class="modal-close" onclick="closeShareModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="share-url-row">
+          <input id="share-url-input" class="share-url-input" type="text" readonly />
+          <button class="btn btn-primary" id="share-copy-btn" onclick="copyShareUrl()">Copy</button>
+        </div>
+        <p class="modal-note">Anyone with this link can view the slideshow but cannot edit it.</p>
+      </div>
+    </div>
+  </div>
+
   <script src="/builder.js"></script>
   <script src="/exporter.js"></script>
 </body>
