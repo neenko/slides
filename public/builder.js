@@ -3,6 +3,8 @@ let slideshow = { id: null, title: 'Untitled Slideshow', slides: [] };
 let dragInfo = null; // { type: 'slide'|'asset', slideId, assetId? }
 let dirty = false;
 
+let autosaveTimer = null;
+
 // DOM element caches — reused across renders to avoid image reloads
 const slideEls = new Map(); // slideId → card element
 const assetEls = new Map(); // assetId → thumb element
@@ -27,6 +29,10 @@ function escHtml(str) {
 function setDirty() {
   dirty = true;
   document.getElementById('save-status').textContent = 'Unsaved changes';
+  clearTimeout(autosaveTimer);
+  if (document.getElementById('autosave-toggle')?.checked) {
+    autosaveTimer = setTimeout(() => save(), 2000);
+  }
 }
 
 function clearAllDropClasses() {
