@@ -128,6 +128,18 @@ function addUrls() {
   render();
 }
 
+// ===================== ADD EMPTY SLIDE =====================
+function addEmptySlide(index) {
+  const slide = { id: uid(), layout: 'smart', assets: [] };
+  if (index === undefined) {
+    slideshow.slides.push(slide);
+  } else {
+    slideshow.slides.splice(index, 0, slide);
+  }
+  setDirty();
+  render();
+}
+
 // ===================== REMOVE ASSET =====================
 function removeAsset(slideId, assetId) {
   const slide = slideshow.slides.find(s => s.id === slideId);
@@ -138,7 +150,6 @@ function removeAsset(slideId, assetId) {
   const el = assetEls.get(assetId);
   if (el) { el.remove(); assetEls.delete(assetId); }
 
-  cleanSlides();
   setDirty();
   render();
 }
@@ -174,7 +185,6 @@ function moveAsset(assetId, fromSlideId, toSlideId, beforeAssetId) {
     toSlide.assets.push(asset);
   }
 
-  cleanSlides();
   setDirty();
   render();
 }
@@ -558,6 +568,7 @@ function render() {
     card.querySelector('.slide-play').style.display = slideshow.id ? '' : 'none';
 
     const assetsContainer = card.querySelector('.slide-assets');
+    assetsContainer.classList.toggle('is-empty', slide.assets.length === 0);
 
     // Append (or reposition) asset thumbs in correct order
     slide.assets.forEach(asset => {

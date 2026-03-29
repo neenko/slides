@@ -17,7 +17,8 @@ async function init() {
     if (!res.ok) { showError('Slideshow not found.'); return; }
     slideshow = await res.json();
 
-    if (!slideshow.slides?.length) { showError('This slideshow has no slides.'); return; }
+    slideshow.slides = (slideshow.slides || []).filter(s => s.assets?.length > 0);
+    if (!slideshow.slides.length) { showError('This slideshow has no slides.'); return; }
 
     document.title = slideshow.title;
     const editLink = document.getElementById('edit-link');

@@ -60,6 +60,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
 .slides-grid { display: flex; flex-wrap: wrap; gap: 12px; min-height: 60px; }
 
+.add-slide-btn { display: inline-flex; align-items: center; gap: 4px; margin: 8px 0; padding: 5px 12px; font-size: 12px; color: var(--text-muted); background: none; border: 1px dashed var(--border); border-radius: var(--radius); cursor: pointer; transition: color 0.15s, border-color 0.15s; }
+.add-slide-btn:hover { color: var(--accent); border-color: var(--accent); }
+
 /* Slide Card */
 .slide-card { background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius); width: 180px; cursor: grab; position: relative; transition: border-color 0.15s, transform 0.15s; user-select: none; }
 .slide-card:active { cursor: grabbing; }
@@ -91,6 +94,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .asset-thumb img, .asset-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
 .asset-thumb.drop-indicator-before { box-shadow: 0 -2px 0 var(--accent); }
 .asset-thumb.drop-indicator-after { box-shadow: 0 2px 0 var(--accent); }
+
+.slide-assets.is-empty { border: 1px dashed var(--border); border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+.slide-assets.is-empty::after { content: 'empty'; color: var(--text-muted); font-size: 11px; font-style: italic; }
 
 .asset-type-badge { position: absolute; bottom: 4px; left: 4px; background: rgba(0,0,0,0.6); color: #fff; font-size: 10px; padding: 2px 5px; border-radius: 3px; }
 .asset-remove { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; border-radius: 50%; background: rgba(0,0,0,0.6); color: #fff; border: none; cursor: pointer; font-size: 14px; line-height: 1; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.15s; }
