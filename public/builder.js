@@ -44,6 +44,40 @@ function clearAllDropClasses() {
   });
 }
 
+// ===================== DRAG AUTO-SCROLL =====================
+const SCROLL_ZONE = 80;  // px from edge where scrolling kicks in
+const SCROLL_SPEED = 12; // max px per frame
+let scrollFrame = null;
+let lastDragY = null;
+
+function autoScrollStep() {
+  if (lastDragY === null || !dragInfo) { scrollFrame = null; return; }
+  const vh = window.innerHeight;
+  let speed = 0;
+  if (lastDragY < SCROLL_ZONE) {
+    speed = -SCROLL_SPEED * (1 - lastDragY / SCROLL_ZONE);
+  } else if (lastDragY > vh - SCROLL_ZONE) {
+    speed = SCROLL_SPEED * (1 - (vh - lastDragY) / SCROLL_ZONE);
+  }
+  if (speed !== 0) window.scrollBy(0, speed);
+  scrollFrame = requestAnimationFrame(autoScrollStep);
+}
+
+function stopAutoScroll() {
+  if (scrollFrame) { cancelAnimationFrame(scrollFrame); scrollFrame = null; }
+  lastDragY = null;
+}
+
+// Capture phase so this fires even when child dragover handlers call stopPropagation
+document.addEventListener('dragover', (e) => {
+  if (!dragInfo) return;
+  lastDragY = e.clientY;
+  if (!scrollFrame) scrollFrame = requestAnimationFrame(autoScrollStep);
+}, true);
+
+document.addEventListener('dragend', stopAutoScroll, true);
+document.addEventListener('drop', stopAutoScroll, true);
+
 // ===================== INIT =====================
 async function init() {
   const pathParts = location.pathname.split('/');
