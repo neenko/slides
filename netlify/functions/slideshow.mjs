@@ -18,7 +18,7 @@ export default async (req, context) => {
   }
 
   const { id } = context.params;
-  const store = getStore('slideshows');
+  const store = getStore({ name: 'slideshows', consistency: 'strong' });
 
   if (req.method === 'GET') {
     const data = await store.get(id, { type: 'json' });
