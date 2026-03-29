@@ -169,7 +169,7 @@ async function renderMosaic(slide, area) {
   const ratios = await loadRatios(slide.assets);
 
   const content = document.createElement('div');
-  content.style.cssText = 'width:100%;height:100%;display:flex;gap:12px;padding:8px;background:#000;box-sizing:border-box;align-items:stretch;';
+  content.style.cssText = 'width:100%;height:100%;display:flex;gap:24px;padding:12px;background:#000;box-sizing:border-box;align-items:stretch;';
 
   slide.assets.forEach((asset, i) => {
     const ratio = ratios[i];
@@ -194,7 +194,7 @@ function buildGrid(assets, objectFit, colsOverride) {
   const cols = colsOverride ?? (count <= 2 ? count : count === 3 ? 2 : Math.min(count, 3));
 
   const grid = document.createElement('div');
-  grid.style.cssText = `width:100%;height:100%;display:grid;grid-template-columns:repeat(${cols},1fr);gap:12px;padding:8px;background:#000;box-sizing:border-box;`;
+  grid.style.cssText = `width:100%;height:100%;display:grid;grid-template-columns:repeat(${cols},1fr);gap:24px;padding:12px;background:#000;box-sizing:border-box;`;
 
   assets.forEach(asset => {
     const cell = document.createElement('div');
