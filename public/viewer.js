@@ -2,6 +2,7 @@
 let slideshow = null;
 let currentIndex = 0;
 let saveTimer = null;
+const isShareMode = location.pathname.startsWith('/share/');
 
 // ===================== INIT =====================
 async function init() {
@@ -11,14 +12,20 @@ async function init() {
   if (!id || id === 'view.html') { showError('No slideshow ID provided.'); return; }
 
   try {
-    const res = await fetch(`/api/slideshows/${id}`);
+    const apiUrl = isShareMode ? `/api/share/${id}` : `/api/slideshows/${id}`;
+    const res = await fetch(apiUrl);
     if (!res.ok) { showError('Slideshow not found.'); return; }
     slideshow = await res.json();
 
     if (!slideshow.slides?.length) { showError('This slideshow has no slides.'); return; }
 
     document.title = slideshow.title;
-    document.getElementById('edit-link').href = `/builder/${id}`;
+    const editLink = document.getElementById('edit-link');
+    if (isShareMode) {
+      editLink.style.display = 'none';
+    } else {
+      editLink.href = `/builder/${id}`;
+    }
 
     document.getElementById('slide-area').addEventListener('click', () => next());
 
@@ -240,6 +247,8 @@ function loadRatios(assets) {
 function changeLayout(value) {
   slideshow.slides[currentIndex].layout = value;
   showSlide(currentIndex);
+
+  if (isShareMode) return; // shared views are read-only
 
   clearTimeout(saveTimer);
   saveTimer = setTimeout(async () => {

@@ -250,11 +250,34 @@ async function save() {
 function showSavedUI(id) {
   const copyBtn = document.getElementById('copy-btn');
   const viewBtn = document.getElementById('view-btn');
+  const shareBtn = document.getElementById('share-btn');
   const exportDrop = document.getElementById('export-dropdown');
   copyBtn.style.display = 'inline-flex';
   viewBtn.style.display = 'inline-flex';
+  shareBtn.style.display = 'inline-flex';
   viewBtn.href = `/view/${id}`;
   exportDrop.style.display = 'inline-flex';
+}
+
+// ===================== SHARE =====================
+async function shareSlideshow() {
+  const btn = document.getElementById('share-btn');
+  const orig = btn.textContent;
+  btn.textContent = 'Generating…';
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/slideshows/${slideshow.id}/share`, { method: 'POST' });
+    const { token } = await res.json();
+    const url = `${location.origin}/share/${token}`;
+    await navigator.clipboard.writeText(url);
+    btn.textContent = 'Link copied!';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  } catch (e) {
+    console.error('Share failed:', e);
+    btn.textContent = orig;
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // ===================== COPY LINK =====================

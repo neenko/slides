@@ -11,3 +11,8 @@
   from = "/builder/:id"
   to = "/builder.html"
   status = 200
+
+[[redirects]]
+  from = "/share/:token"
+  to = "/view.html"
+  status = 200
