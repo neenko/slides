@@ -88,7 +88,7 @@ function loadImg(dataUrl) {
 }
 
 // ===================== CANVAS DRAWING =====================
-const CW = 1280, CH = 720;
+const CW = 2560, CH = 1440;
 
 function drawContain(ctx, img, x, y, w, h) {
   const scale = Math.min(w / img.naturalWidth, h / img.naturalHeight);
@@ -201,13 +201,15 @@ async function normalizeOrientation(dataUrl) {
 async function exportPDF(slideshow, onProgress) {
   await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({ orientation: 'landscape', unit: 'px', format: [CW, CH] });
+  // Use logical page size independent of canvas resolution
+  const PW = 1280, PH = 720;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'px', format: [PW, PH] });
 
   for (let i = 0; i < slideshow.slides.length; i++) {
     onProgress(i + 1, slideshow.slides.length);
-    if (i > 0) doc.addPage([CW, CH], 'landscape');
+    if (i > 0) doc.addPage([PW, PH], 'landscape');
     const canvas = await renderSlideToCanvas(slideshow.slides[i]);
-    doc.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, CW, CH);
+    doc.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, PW, PH);
   }
 
   doc.save(`${slideshow.title || 'Slideshow'}.pdf`);
