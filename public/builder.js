@@ -80,7 +80,7 @@ function addUrls() {
   if (!urls.length) return;
 
   urls.forEach(url => {
-    slideshow.slides.push({ id: uid(), assets: [{ id: uid(), url, type: assetType(url) }] });
+    slideshow.slides.push({ id: uid(), layout: 'smart', assets: [{ id: uid(), url, type: assetType(url) }] });
   });
 
   textarea.value = '';
@@ -336,6 +336,25 @@ function createSlideCard(slide) {
   numSpan.className = 'slide-num';
   handle.appendChild(numSpan);
 
+  const layoutSelect = document.createElement('select');
+  layoutSelect.className = 'layout-select';
+  layoutSelect.title = 'Multi-asset layout';
+  layoutSelect.innerHTML = `
+    <option value="smart">Smart</option>
+    <option value="contain">Contain</option>
+    <option value="cover">Cover</option>
+    <option value="freeflow">Free flow</option>
+    <option value="mosaic">Mosaic</option>
+  `;
+  layoutSelect.addEventListener('change', (e) => {
+    e.stopPropagation();
+    const s = slideshow.slides.find(sl => sl.id === slide.id);
+    if (s) { s.layout = e.target.value; setDirty(); }
+  });
+  // prevent dragstart when interacting with select
+  layoutSelect.addEventListener('mousedown', (e) => e.stopPropagation());
+  handle.appendChild(layoutSelect);
+
   const deleteBtn = document.createElement('button');
   deleteBtn.className = 'slide-delete';
   deleteBtn.title = 'Delete slide';
@@ -436,6 +455,11 @@ function render() {
 
     // Update slide number label
     card.querySelector('.slide-num').textContent = `Slide ${slideIndex + 1}`;
+
+    // Sync layout select
+    const select = card.querySelector('.layout-select');
+    select.style.display = slide.assets.length > 1 ? '' : 'none';
+    select.value = slide.layout || 'smart';
 
     const assetsContainer = card.querySelector('.slide-assets');
 

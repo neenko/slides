@@ -7,39 +7,23 @@ async function init() {
   const pathParts = location.pathname.split('/');
   const id = pathParts[pathParts.length - 1];
 
-  if (!id || id === 'view.html') {
-    showError('No slideshow ID provided.');
-    return;
-  }
+  if (!id || id === 'view.html') { showError('No slideshow ID provided.'); return; }
 
   try {
     const res = await fetch(`/api/slideshows/${id}`);
-    if (!res.ok) {
-      showError('Slideshow not found.');
-      return;
-    }
+    if (!res.ok) { showError('Slideshow not found.'); return; }
     slideshow = await res.json();
 
-    if (!slideshow.slides || !slideshow.slides.length) {
-      showError('This slideshow has no slides.');
-      return;
-    }
+    if (!slideshow.slides?.length) { showError('This slideshow has no slides.'); return; }
 
     document.title = slideshow.title;
     document.getElementById('edit-link').href = `/builder/${id}`;
 
-    // Click on slide area advances to next slide
     document.getElementById('slide-area').addEventListener('click', () => next());
 
-    // Keyboard navigation
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'ArrowLeft') {
-        e.preventDefault();
-        prev();
-      } else if (e.key === 'ArrowRight' || e.key === ' ') {
-        e.preventDefault();
-        next();
-      }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+      else if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }
     });
 
     showSlide(0);
@@ -50,157 +34,199 @@ async function init() {
 }
 
 // ===================== SHOW SLIDE =====================
-function showSlide(index) {
+async function showSlide(index) {
   if (!slideshow || index < 0 || index >= slideshow.slides.length) return;
 
   currentIndex = index;
   const slide = slideshow.slides[index];
   const area = document.getElementById('slide-area');
 
-  // Pause and remove any existing videos
-  area.querySelectorAll('video').forEach(v => {
-    v.pause();
-    v.src = '';
-  });
+  // Pause and detach existing videos
+  area.querySelectorAll('video').forEach(v => { v.pause(); v.src = ''; });
 
-  const content = document.createElement('div');
-  const isSingle = slide.assets.length === 1;
-  content.className = `slide-content ${isSingle ? 'single' : 'multi'}`;
-
-  if (!isSingle) {
-    // Determine grid layout based on asset count
-    const count = slide.assets.length;
-    if (count === 2) {
-      content.style.gridTemplateColumns = '1fr 1fr';
-      content.style.gridTemplateRows = '1fr';
-      content.style.width = '100%';
-      content.style.height = '100%';
-    } else if (count === 3) {
-      content.style.gridTemplateColumns = '1fr 1fr';
-      content.style.gridTemplateRows = '1fr 1fr';
-      content.style.width = '100%';
-      content.style.height = '100%';
-    } else if (count === 4) {
-      content.style.gridTemplateColumns = '1fr 1fr';
-      content.style.gridTemplateRows = '1fr 1fr';
-      content.style.width = '100%';
-      content.style.height = '100%';
-    } else {
-      // 5+ assets: 3 columns
-      const cols = Math.min(count, 3);
-      content.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-      content.style.width = '100%';
-      content.style.height = '100%';
-    }
+  if (slide.assets.length === 1) {
+    renderSingle(slide.assets[0], area);
+  } else {
+    const layout = slide.layout || 'smart';
+    await renderMulti(slide, area, layout);
   }
 
+  // Update counter
+  document.getElementById('counter').textContent = `${index + 1} / ${slideshow.slides.length}`;
+
+  // Update nav buttons
+  const isFirst = index === 0;
+  const isLast = index === slideshow.slides.length - 1;
+  document.getElementById('prev-btn').style.display = isFirst ? 'none' : 'flex';
+  document.getElementById('next-btn').style.display = isLast ? 'none' : 'flex';
+  document.getElementById('ctrl-prev').disabled = isFirst;
+  document.getElementById('ctrl-next').disabled = isLast;
+}
+
+// ===================== NAVIGATION =====================
+function next() { if (slideshow && currentIndex < slideshow.slides.length - 1) showSlide(currentIndex + 1); }
+function prev() { if (slideshow && currentIndex > 0) showSlide(currentIndex - 1); }
+
+// ===================== SINGLE ASSET =====================
+function renderSingle(asset, area) {
+  const content = document.createElement('div');
+  content.className = 'slide-content single';
+  content.appendChild(makeMediaEl(asset, 'contain', true));
+  area.innerHTML = '';
+  area.appendChild(content);
+}
+
+// ===================== MULTI-ASSET ROUTER =====================
+async function renderMulti(slide, area, layout) {
+  switch (layout) {
+    case 'cover':    renderCover(slide, area);          break;
+    case 'contain':  renderContain(slide, area);        break;
+    case 'freeflow': renderFreeflow(slide, area);       break;
+    case 'mosaic':   await renderMosaic(slide, area);   break;
+    case 'smart':
+    default:         await renderSmart(slide, area);    break;
+  }
+}
+
+// ===================== LAYOUT: COVER =====================
+// Fixed grid, object-fit: cover. Nothing letterboxed but edges may be cropped.
+function renderCover(slide, area) {
+  area.innerHTML = '';
+  area.appendChild(buildGrid(slide.assets, 'cover'));
+}
+
+// ===================== LAYOUT: CONTAIN =====================
+// Fixed grid, object-fit: contain. Full image visible; black bars fill gaps.
+function renderContain(slide, area) {
+  area.innerHTML = '';
+  area.appendChild(buildGrid(slide.assets, 'contain'));
+}
+
+// ===================== LAYOUT: SMART =====================
+// Loads image dimensions, picks grid columns based on orientation.
+// Portrait-heavy → more columns; landscape-heavy → fewer columns.
+// Uses object-fit: contain so nothing is cropped.
+async function renderSmart(slide, area) {
+  const ratios = await loadRatios(slide.assets);
+  const avg = ratios.reduce((s, r) => s + r, 0) / ratios.length;
+  const count = slide.assets.length;
+
+  let cols;
+  if (count === 2)      cols = avg > 1.2 ? 1 : 2;           // landscape → stack; portrait → side-by-side
+  else if (count === 3) cols = avg < 0.85 ? 3 : 2;           // portrait → 3 cols; landscape → 2
+  else if (count === 4) cols = 2;                             // always 2×2
+  else                  cols = avg < 0.85 ? Math.min(count, 3) : 2;
+
+  area.innerHTML = '';
+  area.appendChild(buildGrid(slide.assets, 'contain', cols));
+}
+
+// ===================== LAYOUT: FREE FLOW =====================
+// Flex-wrap. Images keep natural aspect ratios, scale to fit available space.
+// Layout wraps naturally — useful for varied mixes.
+function renderFreeflow(slide, area) {
+  const content = document.createElement('div');
+  content.style.cssText = 'width:100%;height:100%;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;align-content:center;gap:8px;padding:8px;background:#000;box-sizing:border-box;';
+
   slide.assets.forEach(asset => {
-    const wrapper = document.createElement('div');
-    wrapper.style.overflow = 'hidden';
-    wrapper.style.display = 'flex';
-    wrapper.style.alignItems = 'center';
-    wrapper.style.justifyContent = 'center';
-    wrapper.style.backgroundColor = '#000';
-
-    if (!isSingle) {
-      wrapper.style.width = '100%';
-      wrapper.style.height = '100%';
-    }
-
-    if (asset.type === 'video') {
-      const video = document.createElement('video');
-      video.src = asset.url;
-      video.autoplay = true;
-      video.muted = true;
-      video.loop = true;
-      video.playsInline = true;
-      video.controls = false;
-      if (isSingle) {
-        video.style.maxWidth = '100%';
-        video.style.maxHeight = '100%';
-        video.style.objectFit = 'contain';
-      } else {
-        video.style.width = '100%';
-        video.style.height = '100%';
-        video.style.objectFit = 'cover';
-      }
-      wrapper.appendChild(video);
-    } else {
-      const img = document.createElement('img');
-      img.src = asset.url;
-      img.alt = '';
-      if (isSingle) {
-        img.style.maxWidth = '100%';
-        img.style.maxHeight = '100%';
-        img.style.objectFit = 'contain';
-      } else {
-        img.style.width = '100%';
-        img.style.height = '100%';
-        img.style.objectFit = 'cover';
-      }
-      wrapper.appendChild(img);
-    }
-
-    if (isSingle) {
-      content.appendChild(wrapper.firstChild);
-    } else {
-      content.appendChild(wrapper);
-    }
+    const el = makeMediaEl(asset, 'contain', false);
+    el.style.maxHeight = '46vh';
+    el.style.maxWidth = '46vw';
+    el.style.width = 'auto';
+    el.style.height = 'auto';
+    el.style.flex = '0 1 auto';
+    content.appendChild(el);
   });
 
   area.innerHTML = '';
   area.appendChild(content);
-
-  // Update counter
-  const counter = document.getElementById('counter');
-  counter.textContent = `${index + 1} / ${slideshow.slides.length}`;
-
-  // Update arrow button states
-  const prevBtn = document.getElementById('prev-btn');
-  const nextBtn = document.getElementById('next-btn');
-  const ctrlPrev = document.getElementById('ctrl-prev');
-  const ctrlNext = document.getElementById('ctrl-next');
-
-  const isFirst = index === 0;
-  const isLast = index === slideshow.slides.length - 1;
-
-  prevBtn.disabled = isFirst;
-  nextBtn.disabled = isLast;
-  ctrlPrev.disabled = isFirst;
-  ctrlNext.disabled = isLast;
-
-  if (isFirst) {
-    prevBtn.style.display = 'none';
-  } else {
-    prevBtn.style.display = 'flex';
-  }
-
-  if (isLast) {
-    nextBtn.style.display = 'none';
-  } else {
-    nextBtn.style.display = 'flex';
-  }
 }
 
-// ===================== NAVIGATION =====================
-function next() {
-  if (!slideshow) return;
-  if (currentIndex < slideshow.slides.length - 1) {
-    showSlide(currentIndex + 1);
-  }
+// ===================== LAYOUT: MOSAIC =====================
+// Single-row mosaic: each item's flex-grow equals its aspect ratio,
+// so widths are proportional to image dimensions. All images same height.
+async function renderMosaic(slide, area) {
+  const ratios = await loadRatios(slide.assets);
+
+  const content = document.createElement('div');
+  content.style.cssText = 'width:100%;height:100%;display:flex;gap:4px;padding:4px;background:#000;box-sizing:border-box;align-items:stretch;';
+
+  slide.assets.forEach((asset, i) => {
+    const ratio = ratios[i];
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = `flex:${ratio} 1 0;min-width:0;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;`;
+    const el = makeMediaEl(asset, 'contain', false);
+    el.style.width = '100%';
+    el.style.height = '100%';
+    wrapper.appendChild(el);
+    content.appendChild(wrapper);
+  });
+
+  area.innerHTML = '';
+  area.appendChild(content);
 }
 
-function prev() {
-  if (!slideshow) return;
-  if (currentIndex > 0) {
-    showSlide(currentIndex - 1);
+// ===================== HELPERS =====================
+
+// Build a standard CSS grid of asset thumbnails.
+function buildGrid(assets, objectFit, colsOverride) {
+  const count = assets.length;
+  const cols = colsOverride ?? (count <= 2 ? count : count === 3 ? 2 : Math.min(count, 3));
+
+  const grid = document.createElement('div');
+  grid.style.cssText = `width:100%;height:100%;display:grid;grid-template-columns:repeat(${cols},1fr);gap:4px;padding:4px;background:#000;box-sizing:border-box;`;
+
+  assets.forEach(asset => {
+    const cell = document.createElement('div');
+    cell.style.cssText = 'overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center;min-height:0;';
+    cell.appendChild(makeMediaEl(asset, objectFit, false));
+    grid.appendChild(cell);
+  });
+
+  return grid;
+}
+
+// Create an <img> or <video> element.
+function makeMediaEl(asset, objectFit, isSingle) {
+  let el;
+  if (asset.type === 'video') {
+    el = document.createElement('video');
+    el.src = asset.url;
+    el.autoplay = true;
+    el.muted = true;
+    el.loop = true;
+    el.playsInline = true;
+  } else {
+    el = document.createElement('img');
+    el.src = asset.url;
+    el.alt = '';
   }
+
+  if (isSingle) {
+    el.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain;display:block;';
+  } else {
+    el.style.cssText = `width:100%;height:100%;object-fit:${objectFit};display:block;`;
+  }
+
+  return el;
+}
+
+// Load aspect ratios for a list of assets. Videos default to 16:9.
+function loadRatios(assets) {
+  return Promise.all(assets.map(asset => {
+    if (asset.type === 'video') return Promise.resolve(16 / 9);
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => resolve(img.naturalWidth / img.naturalHeight);
+      img.onerror = () => resolve(1);
+      img.src = asset.url;
+    });
+  }));
 }
 
 // ===================== ERROR =====================
 function showError(message) {
-  const area = document.getElementById('slide-area');
-  area.innerHTML = `
+  document.getElementById('slide-area').innerHTML = `
     <div class="viewer-error">
       <div style="font-size:48px;">⚠</div>
       <div>${message}</div>
