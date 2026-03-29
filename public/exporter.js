@@ -135,7 +135,7 @@ async function renderSlideToCanvas(slide) {
 
   const count = slide.assets.length;
   const layout = slide.layout || 'smart';
-  const GAP = 24, PAD = 12;
+  const GAP = 48, PAD = 20;
 
   if (count === 1) {
     if (imgs[0]) drawContain(ctx, imgs[0], 0, 0, CW, CH);
