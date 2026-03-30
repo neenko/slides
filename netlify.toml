@@ -2,6 +2,13 @@
   publish = "public"
   functions = "netlify/functions"
 
+[build.environment]
+  NODE_VERSION = "24"
+  NPM_FLAGS = "--prefer-offline"
+
+[functions]
+  node_bundler = "esbuild"
+
 [[redirects]]
   from = "/view/:id"
   to = "/view.html"
